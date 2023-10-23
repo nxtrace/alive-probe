@@ -3,11 +3,13 @@ package main
 import (
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
+	"github.com/gin-gonic/gin"
 	"github.com/nxtrace/NTrace-core/util"
 	"log"
 	"net/http"
 	"net/url"
-	"os"
+	"strings"
 	"time"
 
 	"github.com/TylerBrock/colorjson"
@@ -16,7 +18,13 @@ import (
 	"github.com/nxtrace/wscat-go/pow"
 )
 
-func probe() bool {
+func probe() (bool, string) {
+	var logs strings.Builder
+
+	// 使用这个函数代替直接的 log.Println
+	logFunc := func(msg ...interface{}) {
+		logs.WriteString(fmt.Sprintln(msg...))
+	}
 	fastIp, host, port := "127.0.0.1", "api.leo.moe", "443"
 	jwtToken, ua := util.EnvToken, []string{"Privileged Client"}
 	err := error(nil)
@@ -27,16 +35,16 @@ func probe() bool {
 			jwtToken, err = pow.GetToken(util.GetPowProvider(), util.GetPowProvider(), port)
 		}
 		if err != nil {
-			log.Println(err)
-			os.Exit(1)
+			logFunc(err)
+			return false, logs.String()
 		}
 		ua = []string{"wscat-go"}
 	}
-	log.Println("PoW Start")
+	logFunc("PoW Start")
 
 	if err != nil {
-		log.Println("连接失败:", err)
-		return false
+		logFunc("连接失败:", err)
+		return false, logs.String()
 	}
 
 	requestHeader := http.Header{
@@ -57,17 +65,17 @@ func probe() bool {
 	websocket.DefaultDialer.HandshakeTimeout = time.Second * 3
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), requestHeader)
 	if err != nil {
-		log.Println("连接失败:", err)
-		return false
+		logFunc("连接失败:", err)
+		return false, logs.String()
 	}
 	defer func(c *websocket.Conn) {
 		err := c.Close()
 		if err != nil {
-			log.Println(err)
+			logFunc(err)
 		}
 	}(c)
 
-	log.Println("LeoMoeAPI V2 连接成功！")
+	logFunc("LeoMoeAPI V2 连接成功！")
 	rl, err := readline.New("> ")
 	if err != nil {
 		panic(err)
@@ -75,7 +83,7 @@ func probe() bool {
 	defer func(rl *readline.Instance) {
 		err := rl.Close()
 		if err != nil {
-			log.Println(err)
+			logFunc(err)
 		}
 	}(rl)
 
@@ -84,20 +92,20 @@ func probe() bool {
 			ip := util.GetenvDefault(ENV_FIELD, defaultIP)
 			err = c.WriteMessage(websocket.TextMessage, []byte(ip))
 			if err != nil {
-				log.Println("发送失败:", err)
+				logFunc("发送失败:", err)
 				continue
 			}
 
 			_, message, err := c.ReadMessage()
 			if err != nil {
-				log.Println("接收失败:", err)
+				logFunc("接收失败:", err)
 				continue
 			}
 
 			var ipObj map[string]interface{}
 			err = json.Unmarshal(message, &ipObj)
 			if err != nil {
-				log.Println("JSON解析失败:", err)
+				logFunc("JSON解析失败:", err)
 				continue
 			}
 
@@ -106,7 +114,7 @@ func probe() bool {
 			f.Indent = 2
 
 			s, _ := f.Marshal(ipObj)
-			log.Println(string(s))
+			logFunc(string(s))
 			return true
 		}
 		return false
@@ -116,17 +124,40 @@ func probe() bool {
 	flagV6 := probeIP("V6IP", "2400:3200::1")
 
 	if flagV4 && flagV6 {
-		return true
+		return true, logs.String()
 	} else {
-		return false
+		return false, logs.String()
 	}
 }
 
 func main() {
-	result := probe()
-	if result {
-		log.Println("Probe succeeded.")
-	} else {
-		log.Println("Probe failed.")
+	hostPort := util.GetenvDefault("PROBE_HOSTPORT", "127.0.0.1:8080")
+
+	r := gin.Default()
+
+	r.GET("/", func(c *gin.Context) {
+		alive, logMessage := probe()
+
+		// 同步在服务端打印日志消息
+		log.Println(logMessage)
+
+		if alive {
+			c.JSON(http.StatusOK, gin.H{
+				"status":  "alive",
+				"message": "Probe succeeded.",
+				"log":     logMessage,
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "dead",
+				"message": "Probe failed.",
+				"log":     logMessage,
+			})
+		}
+	})
+
+	err := r.Run(hostPort)
+	if err != nil {
+		log.Printf("Failed to run server: %v", err)
 	}
 }
