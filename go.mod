@@ -3,8 +3,8 @@ module github.com/nxtrace/alive-probe
 go 1.21
 
 require (
-	github.com/TylerBrock/colorjson v0.0.0-20200706003622-8a50f05110d2
 	github.com/chzyer/readline v1.5.1
+	github.com/gin-gonic/gin v1.9.1
 	github.com/gorilla/websocket v1.5.0
 	github.com/nxtrace/wscat-go v0.0.1
 )
@@ -17,7 +17,6 @@ require (
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
-	github.com/gin-gonic/gin v1.9.1 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.15.5 // indirect
