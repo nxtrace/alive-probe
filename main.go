@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TylerBrock/colorjson"
 	"github.com/chzyer/readline"
 	"github.com/gorilla/websocket"
 	"github.com/nxtrace/wscat-go/pow"
@@ -110,11 +109,20 @@ func probe() (bool, string) {
 			}
 
 			// New colorjson Formatter
-			f := colorjson.NewFormatter()
-			f.Indent = 2
+			//f := colorjson.NewFormatter()
+			//f.Indent = 2
+			//
+			//s, _ := f.Marshal(ipObj)
+			//logFunc(string(s))
+			//return true
 
-			s, _ := f.Marshal(ipObj)
-			logFunc(string(s))
+			// 替换原先的colorjson代码
+			formattedJSON, err := json.MarshalIndent(ipObj, "", "  ") // 使用两个空格进行缩进
+			if err != nil {
+				logFunc("JSON格式化失败:", err)
+				continue
+			}
+			logFunc(string(formattedJSON))
 			return true
 		}
 		return false
