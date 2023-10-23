@@ -16,7 +16,7 @@ import (
 	"github.com/nxtrace/wscat-go/pow"
 )
 
-func main() {
+func probe() bool {
 	fastIp, host, port := "127.0.0.1", "api.leo.moe", "443"
 	jwtToken, ua := util.EnvToken, []string{"Privileged Client"}
 	err := error(nil)
@@ -36,8 +36,7 @@ func main() {
 
 	if err != nil {
 		log.Println("连接失败:", err)
-		log.Println("#### 死了 ####")
-		return
+		return false
 	}
 
 	requestHeader := http.Header{
@@ -59,8 +58,7 @@ func main() {
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), requestHeader)
 	if err != nil {
 		log.Println("连接失败:", err)
-		log.Println("#### 死了 ####")
-		return
+		return false
 	}
 	defer func(c *websocket.Conn) {
 		err := c.Close()
@@ -81,71 +79,54 @@ func main() {
 		}
 	}(rl)
 
-	flagV4 := false
-	v4IP := util.GetenvDefault("V4IP", "1.1.1.1")
-	for i := 0; i < 3; i++ {
-		err = c.WriteMessage(websocket.TextMessage, []byte(v4IP))
-		if err != nil {
-			log.Println("发送失败:", err)
-			continue
+	probeIP := func(ENV_FIELD, defaultIP string) bool {
+		for i := 0; i < 3; i++ {
+			ip := util.GetenvDefault(ENV_FIELD, defaultIP)
+			err = c.WriteMessage(websocket.TextMessage, []byte(ip))
+			if err != nil {
+				log.Println("发送失败:", err)
+				continue
+			}
+
+			_, message, err := c.ReadMessage()
+			if err != nil {
+				log.Println("接收失败:", err)
+				continue
+			}
+
+			var ipObj map[string]interface{}
+			err = json.Unmarshal(message, &ipObj)
+			if err != nil {
+				log.Println("JSON解析失败:", err)
+				continue
+			}
+
+			// New colorjson Formatter
+			f := colorjson.NewFormatter()
+			f.Indent = 2
+
+			s, _ := f.Marshal(ipObj)
+			log.Println(string(s))
+			return true
 		}
-
-		_, message, err := c.ReadMessage()
-		if err != nil {
-			log.Println("接收失败:", err)
-			continue
-		}
-
-		var ipObj map[string]interface{}
-		err = json.Unmarshal(message, &ipObj)
-		if err != nil {
-			log.Println("JSON解析失败:", err)
-			continue
-		}
-
-		// New colorjson Formatter
-		f := colorjson.NewFormatter()
-		f.Indent = 2
-
-		s, _ := f.Marshal(ipObj)
-		log.Println(string(s))
-		flagV4 = true
-		break
+		return false
 	}
-	flagV6 := false
-	v6IP := util.GetenvDefault("V6IP", "2400:3200::1")
-	for i := 0; i < 3; i++ {
-		err = c.WriteMessage(websocket.TextMessage, []byte(v6IP))
-		if err != nil {
-			log.Println("发送失败:", err)
-			continue
-		}
 
-		_, message, err := c.ReadMessage()
-		if err != nil {
-			log.Println("接收失败:", err)
-			continue
-		}
+	flagV4 := probeIP("V4IP", "1.1.1.1")
+	flagV6 := probeIP("V6IP", "2400:3200::1")
 
-		var ipObj map[string]interface{}
-		err = json.Unmarshal(message, &ipObj)
-		if err != nil {
-			log.Println("JSON解析失败:", err)
-			continue
-		}
-
-		// New colorjson Formatter
-		f := colorjson.NewFormatter()
-		f.Indent = 2
-
-		s, _ := f.Marshal(ipObj)
-		log.Println(string(s))
-		flagV6 = true
-		break
-	}
 	if flagV4 && flagV6 {
-		log.Println("#### 存活 ####")
+		return true
 	} else {
-		log.Println("#### 死了 ####")
+		return false
+	}
+}
+
+func main() {
+	result := probe()
+	if result {
+		log.Println("Probe succeeded.")
+	} else {
+		log.Println("Probe failed.")
 	}
 }
