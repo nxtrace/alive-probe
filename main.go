@@ -3,10 +3,8 @@ package main
 import (
 	"crypto/tls"
 	"encoding/json"
-	"fmt"
 	"github.com/nxtrace/NTrace-core/util"
 	"log"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,17 +17,7 @@ import (
 )
 
 func main() {
-	fmt.Println(time.Now())
-	var fastIp string
-	host, port := util.GetHostAndPort()
-	// 如果 host 是一个 IP 使用默认域名
-	if valid := net.ParseIP(host); valid != nil {
-		fastIp = host
-		host = "api.leo.moe"
-	} else {
-		// 默认配置完成，开始寻找最优 IP
-		fastIp = util.GetFastIP(host, port, true)
-	}
+	fastIp, host, port := "127.0.0.1", "api.leo.moe", "443"
 	jwtToken, ua := util.EnvToken, []string{"Privileged Client"}
 	err := error(nil)
 	if jwtToken == "" {
@@ -44,10 +32,11 @@ func main() {
 		}
 		ua = []string{"wscat-go"}
 	}
-	fmt.Println("PoW Start")
+	log.Println("PoW Start")
 
 	if err != nil {
-		fmt.Println("连接失败:", err)
+		log.Println("连接失败:", err)
+		log.Println("#### 死了 ####")
 		return
 	}
 
@@ -66,31 +55,21 @@ func main() {
 	}
 	u := url.URL{Scheme: "wss", Host: fastIp + ":" + port, Path: "/v3/ipGeoWs"}
 
+	websocket.DefaultDialer.HandshakeTimeout = time.Second * 3
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), requestHeader)
 	if err != nil {
-		fmt.Println("连接失败:", err)
+		log.Println("连接失败:", err)
+		log.Println("#### 死了 ####")
 		return
 	}
 	defer func(c *websocket.Conn) {
 		err := c.Close()
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 	}(c)
 
-	fmt.Println("LeoMoeAPI V2 连接成功！")
-
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		for {
-			<-ticker.C
-			if err := c.WriteMessage(websocket.PingMessage, nil); err != nil {
-				fmt.Println("发送心跳失败:", err)
-				return
-			}
-		}
-	}()
-
+	log.Println("LeoMoeAPI V2 连接成功！")
 	rl, err := readline.New("> ")
 	if err != nil {
 		panic(err)
@@ -98,7 +77,7 @@ func main() {
 	defer func(rl *readline.Instance) {
 		err := rl.Close()
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		}
 	}(rl)
 
@@ -107,20 +86,20 @@ func main() {
 	for i := 0; i < 3; i++ {
 		err = c.WriteMessage(websocket.TextMessage, []byte(v4IP))
 		if err != nil {
-			fmt.Println("发送失败:", err)
+			log.Println("发送失败:", err)
 			continue
 		}
 
 		_, message, err := c.ReadMessage()
 		if err != nil {
-			fmt.Println("接收失败:", err)
+			log.Println("接收失败:", err)
 			continue
 		}
 
 		var ipObj map[string]interface{}
 		err = json.Unmarshal(message, &ipObj)
 		if err != nil {
-			fmt.Println("JSON解析失败:", err)
+			log.Println("JSON解析失败:", err)
 			continue
 		}
 
@@ -129,7 +108,7 @@ func main() {
 		f.Indent = 2
 
 		s, _ := f.Marshal(ipObj)
-		fmt.Println(string(s))
+		log.Println(string(s))
 		flagV4 = true
 		break
 	}
@@ -138,20 +117,20 @@ func main() {
 	for i := 0; i < 3; i++ {
 		err = c.WriteMessage(websocket.TextMessage, []byte(v6IP))
 		if err != nil {
-			fmt.Println("发送失败:", err)
+			log.Println("发送失败:", err)
 			continue
 		}
 
 		_, message, err := c.ReadMessage()
 		if err != nil {
-			fmt.Println("接收失败:", err)
+			log.Println("接收失败:", err)
 			continue
 		}
 
 		var ipObj map[string]interface{}
 		err = json.Unmarshal(message, &ipObj)
 		if err != nil {
-			fmt.Println("JSON解析失败:", err)
+			log.Println("JSON解析失败:", err)
 			continue
 		}
 
@@ -160,11 +139,13 @@ func main() {
 		f.Indent = 2
 
 		s, _ := f.Marshal(ipObj)
-		fmt.Println(string(s))
+		log.Println(string(s))
 		flagV6 = true
 		break
 	}
 	if flagV4 && flagV6 {
-		fmt.Println("#### 存活 ####")
+		log.Println("#### 存活 ####")
+	} else {
+		log.Println("#### 死了 ####")
 	}
 }
