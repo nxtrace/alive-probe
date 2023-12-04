@@ -24,7 +24,8 @@ func probe() (bool, string) {
 	logFunc := func(msg ...interface{}) {
 		logs.WriteString(fmt.Sprintln(msg...))
 	}
-	fastIp, host, port := "127.0.0.1", "api.leo.moe", "443"
+	// 由于本仓库用途为探针，所以仅考虑本机IP(不套CDN的情况)，SNI/HOST直接使用api.nxtrace.org
+	fastIp, host, port := "127.0.0.1", "api.nxtrace.org", "443"
 	jwtToken, ua := util.EnvToken, []string{"Privileged Client"}
 	err := error(nil)
 	if jwtToken == "" {
